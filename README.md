@@ -1,11 +1,12 @@
 # pyTagger
 
 local server for tagging Pictures
+
 exiftool is needed for reading and writing the exif data 
 
 run server:
 
-'python server.py [path to some pictures]'
+`python server.py [path to some pictures]`
 
 then open http://127.0.0.1:5000/
 
