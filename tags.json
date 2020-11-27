@@ -1,0 +1,7 @@
+{
+	 "locations" : {"home":"l:home", "work":"l:work"}
+	,"people"    : {"me":"p:me", "you":"p:you", "her":"p:her"}
+	,"events"    : {"bday":"e:bday","XMas":"e:xmas","vacation":"e:vacation"}
+	,"objects"   : {"moon":"o:moon","sun":"o:sun","nature":"o:nature", "water":"o:water"}
+	,"quality"    : {"1":"rf:1","2":"rf:2","3":"rf:3","4":"rf:4","5":"rf:5"}
+}
