@@ -298,8 +298,12 @@ def shutdown():
 
 @app.after_request
 def add_security_header(response):
-    global script_nonce, content_security_policy
-    content_security_policy = "default-src 'self'; img-src 'self'; script-src 'strict-dynamic' 'nonce-" + str(script_nonce) + "'; style-src 'self';"
+    global script_nonce
+    content_security_policy = "default-src 'none';"\
+                              " img-src 'self'; "\
+                              "script-src 'strict-dynamic' 'nonce-" + str(script_nonce) + "'; "\
+                              "style-src 'self'; "\
+                              "connect-src 'self'; "
     response.headers['Content-Security-Policy'] = content_security_policy
     response.headers['X-Frame-Options'] = "deny"
     response.headers['X-Content-Type-Options'] = "nosniff"
