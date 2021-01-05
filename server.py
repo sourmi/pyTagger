@@ -1,6 +1,12 @@
+import json
+import os
+import subprocess
+import sys
+import urllib
+import uuid
+
 from flask import Flask, request, Response, send_from_directory, redirect
 from flask_restful import Api, Resource
-import os, subprocess, json, urllib, sys, uuid
 
 app = Flask(__name__)
 
@@ -8,56 +14,59 @@ app = Flask(__name__)
 class ExifData:
 
     @staticmethod
-    def getData(filename):
+    def get_data(filen_name):
         try:
-            s = subprocess.check_output(["exiftool"
-                , "-s" # Short output format
-                , "-json"
-                , "-ImageDescription"
-                , "-UserComment"
-                , "-DateTimeOriginal"
-                , "-Rating"
-                , "-Artist"
-                , "-Copyright"
-                , filename])
+            s = subprocess.check_output(
+                ["exiftool"
+                    , "-s"  # Short output format
+                    , "-json"
+                    , "-ImageDescription"
+                    , "-UserComment"
+                    , "-DateTimeOriginal"
+                    , "-Rating"
+                    , "-Artist"
+                    , "-Copyright"
+                    , filen_name])
             j = json.loads(s)
             return j[0]
-        except:
-            print("error get data") 
+        except subprocess.CalledProcessError as error:
+            print(f"error get data {error.returncode} {error.output}")
         return {}
 
     @staticmethod
-    def setData(filename, data):
+    def set_data(file_name, data):
         try:
-            args = ["exiftool"
-                , "-overwrite_original" # change original file no backup-copy
-                , "-P" # preserve Filetime
+            args = [
+                "exiftool",
+                "-overwrite_original",  # change original file no backup-copy
+                "-P"  # preserve Filetime
             ]
-            for key, value in data.iteritems():
-                arg = "-"+key +"="+ value
+            for key, value in data.items():
+                arg = f"-{key}={value}"
                 args.append(arg)
-            args.append(filename)
+            args.append(file_name)
             print(args)
-            s = subprocess.check_output(args)
-        except:
-            print("error set data") 
+            subprocess.check_output(args)
+        except subprocess.CalledProcessError as error:
+            print(f"error get data {error.returncode} {error.output}")
         return {}
 
 
 class Images(Resource):
 
-    def get(self, name):
-        filename = rootPath+name
-        print("Images.get: " + filename)
+    @staticmethod
+    def get(name):
+        filename = root_path + name
+        print(f"Images.get: {filename}")
 
-        if not checkPathtraversal(filename):
+        if not check_path_traversal(filename):
             return "Bad user!", 403
 
         if not os.path.exists(filename):
-            return "Image "+ name +" not found", 404
+            return f"Image {name} not found", 404
         if os.path.isfile(filename):
             basename = os.path.basename(filename)
-            dirname  = os.path.dirname(filename) +"/"
+            dirname = os.path.dirname(filename) + "/"
             return send_from_directory(dirname, basename)
         else:
             files = os.listdir(filename)
@@ -66,163 +75,169 @@ class Images(Resource):
         
 class Exif(Resource):
 
-    def get(self, name):
-        filename = rootPath+name
-        if not checkPathtraversal(filename):
+    @staticmethod
+    def get(name):
+        filename = root_path + name
+        if not check_path_traversal(filename):
             return "Bad user!", 403
-        json = getExifForFile(name)
-        if not json:
-            return "Image "+ name +" not found", 404
-        return json, 200
+        json_exif = get_exif_for_file(name)
+        if not json_exif:
+            return f"Image {name} not found", 404
+        return json_exif, 200
 
-    def put(self, name):
-        filename = rootPath+name
-        if not checkPathtraversal(filename):
+    @staticmethod
+    def put(name):
+        filename = root_path + name
+        if not check_path_traversal(filename):
             return "Bad user!", 403
         if not os.path.exists(filename):
-            return "Image "+ name +" not found", 404
+            return f"Image {name} not found", 404
         content = request.json
-        ExifData.setData(filename, content)
+        ExifData.set_data(filename, content)
         return "OK", 200
 
 
 class Html(Resource):
 
     def get(self, name=""):
-        filename = rootPath+name
-        if not checkPathtraversal(filename):
+        filename = root_path + name
+        if not check_path_traversal(filename):
             return "Bad user!", 403
-        print("GET " + name +":"+str(os.path.isdir(filename)))
+        print(f"GET {name}:{str(os.path.isdir(filename))}")
         if os.path.isdir(filename):
-            return Response(listFiles(name), mimetype='text/html')
+            return Response(list_files(name), mimetype='text/html')
         if not os.path.exists(filename):
-            print("Image "+ name +" not found", 404)
-            return "Image "+ name +" not found", 404
-        indexHtml = getIndexHtml(name)
-        return Response(indexHtml, mimetype='text/html')
+            print(f"Image {name} not found", 404)
+            return f"Image {name} not found", 404
+        index_html = get_index_html(name)
+        return Response(index_html, mimetype='text/html')
 
-
-    def post(self,name):
-        filename = rootPath+name
-        if not checkPathtraversal(filename):
+    def post(self, name):
+        filename = root_path + name
+        if not check_path_traversal(filename):
             return "Bad user!", 403
-        print("POST "+ name)
         data = request.json
-        for key, value in data.iteritems():
-            print("> "+key +"=["+ value +"]")
+        print("POST {name}"+ str(data))
+        for key, value in data.items():
+            #print("> "+key+"=["+ value +"]")
+            print(f"> {key}=[{value}]")
         # Exif speichern
-        filename = rootPath+name
-        ExifData.setData(filename,data)
-
-        nextFile = str(getNextFile(name))
-        ret = urllib.quote(nextFile,'');
-        return Response(ret,mimetype='text/html')
+        filename = root_path + name
+        ExifData.set_data(filename, data)
+        next_file = str(get_next_file(name))
+        ret = urllib.parse.quote(next_file, '')
+        return Response(ret, mimetype='text/html')
 
 
 class Navigation(Resource):
 
-    def get(self, direction, fileName=""):
-        if direction =="next":
-            next = getNextFile(fileName)
-            return redirect("/html/"+next, code=303)
-        if direction =="prev":
-            prev = getPrevFile(fileName)
-            return redirect("/html/"+prev, code=303)
-        if direction =="up":
-            up = os.path.dirname(fileName)
-            return redirect("/html/"+up, code=303)
+    @staticmethod
+    def get(direction, file_name=""):
+        if direction == "next":
+            next_file = get_next_file(file_name)
+            return redirect("/html/" + next_file, code=303)
+        if direction == "prev":
+            prev = get_prev_file(file_name)
+            return redirect("/html/" + prev, code=303)
+        if direction == "up":
+            up = os.path.dirname(file_name)
+            return redirect("/html/" + up, code=303)
 
 
-def getNonce():
-    global scriptNonce
-    scriptNonce = uuid.uuid4()
-    return str(scriptNonce)
+def get_nonce():
+    global script_nonce
+    script_nonce = uuid.uuid4()
+    return str(script_nonce)
 
 
-def getIndexHtml(name):
-    filename = rootPath+name
-    resultJson = ExifData.getData(filename)
-    indexHtml = getIndex()
-    indexHtml = indexHtml.replace("{ImageDescription}", resultJson.get("ImageDescription",""))
-    indexHtml = indexHtml.replace("{UserComment}"     , resultJson.get("UserComment",""))
-    indexHtml = indexHtml.replace("{DateTimeOriginal}", resultJson.get("DateTimeOriginal",""))
-    indexHtml = indexHtml.replace("{Rating}"          , str(resultJson.get("Rating","")))
-    indexHtml = indexHtml.replace("{ImagePath}"       , os.path.split(name)[0])
-    indexHtml = indexHtml.replace("{SourceFile}"      , os.path.split(name)[1]) #name)
-    indexHtml = indexHtml.replace("{StaticText}"      , "")
-    indexHtml = indexHtml.replace("{TagJsonData}"     , json.dumps(TagDataJson, indent=4))
+def get_index_html(name):
+    filename = root_path + name
+    result_json = ExifData.get_data(filename)
+    index_html = get_index()
+    index_html = index_html.replace("{ImageDescription}", result_json.get("ImageDescription", ""))
+    index_html = index_html.replace("{UserComment}"     , result_json.get("UserComment", ""))
+    index_html = index_html.replace("{DateTimeOriginal}", result_json.get("DateTimeOriginal", ""))
+    index_html = index_html.replace("{Rating}"          , str(result_json.get("Rating", "")))
+    index_html = index_html.replace("{ImagePath}"       , os.path.split(name)[0])
+    index_html = index_html.replace("{SourceFile}"      , os.path.split(name)[1])
+    index_html = index_html.replace("{StaticText}"      , "")
+    index_html = index_html.replace("{TagJsonData}", json.dumps(tag_data_json, indent=4))
     
     # insert nonce for CSP
-    indexHtml = indexHtml.replace("{script-nonce}"    , getNonce())
-    return indexHtml
+    index_html = index_html.replace("{script-nonce}", get_nonce())
+    return index_html
 
 
-def getExifForFile(fileName):
-    name = fileName
-    fullName = rootPath+name
-    if not os.path.exists(fullName):
+def get_exif_for_file(file_name):
+    name = file_name
+    full_name = root_path + name
+    if not os.path.exists(full_name):
         return None
-    resultJson = ExifData.getData(fullName)
-    resultJson["SourceFile"] = name
-    return resultJson
+    result_json = ExifData.get_data(full_name)
+    result_json["SourceFile"] = name
+    return result_json
 
 
-def getNextFile(inputFile):
-    return getNextFileByDistance(inputFile,  1)
+def get_next_file(input_file):
+    return get_next_file_by_distance(input_file, 1)
 
-def getPrevFile(inputFile):
-    return getNextFileByDistance(inputFile, -1)
 
-def getNextFileByDistance(inputFile, distance):
-    filename = rootPath + inputFile
-    basename = os.path.basename(filename)
-    dirname  = os.path.dirname(filename) +"/"
-    fileList = sorted(os.listdir(dirname))
-    nextIndex = fileList.index(basename)
-    nextIndex = nextIndex + distance
-    if nextIndex < 0:
-        nextIndex = 0;
-    if nextIndex >= len(fileList):
-        nextIndex = len(fileList)-1
-    next = fileList[nextIndex];
-    next = filename.replace(basename, next);
-    next = next.replace(rootPath, "");
-    return next
+def get_prev_file(input_file):
+    return get_next_file_by_distance(input_file, -1)
 
-def listFiles(relativePath):
-    absolutePath = os.path.normpath(rootPath +"/"+ relativePath)
-    if not checkPathtraversal(absolutePath):
+
+def get_next_file_by_distance(input_file, distance):
+    file_name = root_path + input_file
+    base_name = os.path.basename(file_name)
+    dir_name  = os.path.dirname(file_name) + "/"
+    file_list = sorted(os.listdir(dir_name))
+    next_index = file_list.index(base_name)
+    next_index = next_index + distance
+    if next_index < 0:
+        next_index = 0
+    if next_index >= len(file_list):
+        next_index = len(file_list)-1
+    next_file = file_list[next_index]
+    next_file = file_name.replace(base_name, next_file)
+    next_file = next_file.replace(root_path, "")
+    return next_file
+
+
+def list_files(relative_path):
+    absolute_path = os.path.normpath(root_path + "/" + relative_path)
+    if not check_path_traversal(absolute_path):
         return "Bad user!", 403
-    html = ""
-    html += "<a href='/html'>home</a> || \n"
-    html += "<a href='/shutdown'>shutdown server</a>\n"
-    html += "<br><br>\n"
-    html += "<a href='/nav/up/"+ relativePath +"'>..</a><br>\n"
-    fileList = sorted(os.listdir(absolutePath))
-    for file in fileList:
-        html += "<a href='/html/"+ relativePath +"/"+ file +"'>"+ relativePath +"/"+ file +"</a><br>\n"
-    html += "<script type='text/javascript' nonce='"+getNonce()+"'>\n"
-    html +=" for(var i = 0, l=document.links.length; i<l; i++) { document.links[i].href += window.location.hash; }\n</script>"
-    return htmlPage(html)
+    html = f"<a href='/html'>home</a> || \n" \
+           f"<a href='/shutdown'>shutdown server</a>\n" \
+           f"<br><br>\n"\
+           f"<a href='/nav/up/{relative_path}'>..</a><br>\n"
+    file_list = sorted(os.listdir(absolute_path))
+    for file in file_list:
+        html += f"<a href='/html/{relative_path}/{file}'>{relative_path}/{file}</a><br>\n"
+    html += f"<script type='text/javascript' nonce='{get_nonce()}'>\n"\
+            "for(var i = 0, l=document.links.length; i<l; i++)"\
+            "{ document.links[i].href += window.location.hash; }\n</script>"
+    return html_page(html)
 
-def checkPathtraversal(path):
-    absoluteFilename = os.path.realpath(path)
-    absoluterootPath = os.path.realpath(rootPath)
-    if os.path.commonprefix((absoluteFilename,absoluterootPath)) != absoluterootPath: 
+
+def check_path_traversal(path_to_check):
+    absolute_filename = os.path.realpath(path_to_check)
+    absolute_root_path = os.path.realpath(root_path)
+    if os.path.commonprefix((absolute_filename, absolute_root_path)) != absolute_root_path:
         #raise PermissionError
         return False
     return True
 
 
-def getIndex():
+def get_index():
     file = open("./image.html", "r") 
-    indexHtml = file.read()
-    return indexHtml
+    index_html = file.read()
+    return index_html
 
 
-def loadTagData(jsonFile):
-    print('loading tags from '+ jsonFile)
-    with open(jsonFile) as json_file:
+def load_tag_data(json_file):
+    print('loading tags from ' + json_file)
+    with open(json_file) as json_file:
         data = json.load(json_file)
     return data
 
@@ -234,73 +249,81 @@ def shutdown_server():
     func()
 
 
-def htmlPage(message):
-    return "<!Doctype html>\n<html>\n<head><meta charset='UTF-8'><title>MyTager</title></head>\n<body>\n"+ message +"\n</body></html>"
+def html_page(message):
+    return f"<!Doctype html>\n<html>\n<head>"\
+           f"<meta charset='UTF-8'><title>MyTager</title></head>"\
+           f"\n<body>\n{message}\n</body></html>"
 
 
-@app.route('/del/<path:fileName>')
-def delelte(fileName):
-    print("DELETE:  "+ fileName)
-    fullName = rootPath + fileName
-    if not checkPathtraversal(fullName):
+@app.route('/del/<path:file_name>')
+def delete(file_name):
+    print(f"DELETE:  {file_name}")
+    full_name = root_path + file_name
+    if not check_path_traversal(full_name):
         return "Bad user!", 403
-    if not os.path.exists(fullName):
-        return "Image "+ fullName +" not found", 404
-    #os.remove(fullName) 
-    print("##### would delete: "+ fullName)
-    next = getNextFile(fileName)
-    if (next==fileName):
+    if not os.path.exists(full_name):
+        return f"Image {full_name} not found", 404
+    #os.remove(full_name)
+    print("##### would delete: " + full_name)
+    next_file = get_next_file(file_name)
+    if next_file == file_name:
         return redirect("/", code=303)
     else:
-        return redirect("/html/"+next, code=303)
+        return redirect("/html/" + next_file, code=303)
+
 
 @app.route('/')
 def index():
-    html = listFiles("")
+    html = list_files("")
     return html
+
 
 @app.route('/styles.css')
 def styles():
     print("STYLES")
     return send_from_directory(".", "styles.css")
 
+
 @app.route('/favicon.ico')
 def favicon():
     print("FAVICON")
     return send_from_directory(".", "favicon.ico")
-    
+
+
 @app.route('/shutdown', methods=['GET'])
 def shutdown():
     shutdown_server()
-    return htmlPage("Server shutting down...")
+    return html_page("Server shutting down...")
+
 
 @app.after_request
 def add_security_header(response):
-    global scriptNonce
-    response.headers['Content-Security-Policy'] = "default-src 'none'; img-src 'self'; script-src 'nonce-"+ str(scriptNonce) +"'; style-src 'self'"
+    global script_nonce, content_security_policy
+    content_security_policy = "default-src 'self'; img-src 'self'; script-src 'strict-dynamic' 'nonce-" + str(script_nonce) + "'; style-src 'self';"
+    response.headers['Content-Security-Policy'] = content_security_policy
     response.headers['X-Frame-Options'] = "deny"
     response.headers['X-Content-Type-Options'] = "nosniff"
     return response
 
 
-scriptNonce = "initialValue" # nonce for CSP inline JavaScript
-TagDataJson = loadTagData('tags.json')
+script_nonce = "initialValue"  # nonce for CSP inline JavaScript
+tag_data_json = load_tag_data('tags.json')
 
 path = ""
-if len(sys.argv)>1:
-    path = sys.argv[1];
+if len(sys.argv) > 1:
+    path = sys.argv[1]
 if not os.path.exists(path):
-    path = os.getcwd() +"/"
+    path = os.getcwd() + "/"
 print('working path: ', str(path))
-rootPath = path
+root_path = path
 
 
 api = Api(app)
 api.add_resource(Images    , "/images/<path:name>")
 api.add_resource(Exif      , "/exif/<path:name>")
-api.add_resource(Html      , "/html/", "/html/<path:name>" )
-api.add_resource(Navigation, "/nav/<string:direction>/", "/nav/<string:direction>/<path:fileName>")
+api.add_resource(Html      , "/html/", "/html/<path:name>")
+api.add_resource(Navigation, "/nav/<string:direction>/", "/nav/<string:direction>/<path:file_name>")
 
 #app.run(debug=True)
 if __name__ == '__main__':
-     app.run(port='5000')
+    app.run(port='5000')

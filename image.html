@@ -60,13 +60,13 @@
 				</fieldset>
 				<textarea id="StaticText" class="small-text" placeholder="StaticText" rows="1"
 >{StaticText}</textarea><br>
-				 <button id="linkPrev">&larr;</button
+				<button id="linkPrev">&larr;</button
 				><button id="linkUp"  >&uarr;</button
 				><button id="linkNext">&rarr;</button
 				><button id="saveNext">save & next</button>
 			</div>
 			<div id="imageContainer" class="imageContainer">
-					<img id="image" class="img-resize" src="/images/{ImagePath}/{SourceFile}">
+				<img id="image" class="img-resize" src="/images/{ImagePath}/{SourceFile}">
 			</div>
 		</div>
 		<script type="text/javascript" nonce="{script-nonce}">
@@ -81,21 +81,36 @@
 
 			setTags(data);
 
-			var myTags = 
+			var myTags =
 			{TagJsonData}
 			;
 
 			var div =  document.getElementById("tags");
 			for (var i in myTags){
-				div.innerHTML += ""+ i +": ";
+				div.appendChild(document.createTextNode(i+": "))
 				var l = 0;
 				for (var tagName in myTags[i]){
 					var tag = myTags[i][tagName];
-					div.innerHTML += (l==0 ? '':', ');
-					div.innerHTML +=  '<a id="tag'+tag+'" class="small-text"  href="javascript:addTag(\''+tag+'\')">'+ tagName +'</a>';
+					var a = document.createElement('a');
+      				a.appendChild(document.createTextNode(tagName));
+      				a.title = tagName;
+      				a.id = "tag"+ tag;
+      				a.href = "#";
+
+					var click_function = function(tag) {
+						return function curried_func(e) {
+							addTag(tag);
+   							e.preventDefault(); // Cancel the native event
+   							e.stopPropagation();// Don't bubble/capture the event any further
+						}
+					}
+      				a.addEventListener('click', click_function(tag));
+					if (l>0)
+      					div.appendChild(document.createTextNode(", "));
+      				div.appendChild(a);
 					l++;
 				}
-				div.innerHTML += "<br>";
+				div.appendChild(document.createElement("BR"))
 			}
 
 			var saveBtn = document.getElementById("saveNext");
@@ -124,7 +139,7 @@
 					if (e.deltaY < 0 /*>*/) navigate("/nav/prev/"); // the comment workaround for syntaxhighlighting glitch in editor
 				}
 			}
-		
+
 			function switchImage(event){
 				if (img.classList.contains("img-resize")) {
 					var scrollX = event.pageX *100 / img.clientWidth;
@@ -143,7 +158,6 @@
 
 			function handleKeyEvent(e){
 				e = e || window.event;
-				//console.log('### '+ e.key +":"+ document.activeElement.tagName);
 				var sourceTag = document.activeElement.tagName;
 				if (sourceTag=="BODY") {
 					if (e.key == "ArrowLeft" ) return navigate("/nav/prev/");
@@ -155,39 +169,33 @@
 				}
 				if (e.key == "Escape") {
 						document.activeElement.blur();
-				}	
+				}
 			}
 			window.addEventListener('keydown', function(){handleKeyEvent(event)});
 
-
-			
 			function repaintUserComment(){
 				var key = window.event.keyCode;
-				if (key === 13 || key===44) { 
-					repaintTags(); 
-					return false; 
+				if (key === 13 || key===44) {
+					repaintTags();
+					return false;
 				}
-				return true; 
+				return true;
 			}
 
 			document.getElementById("UserComment").addEventListener("keypress",repaintUserComment );
 			document.getElementById("UserComment").addEventListener("blur"    ,repaintTags );
-			
+
 			repaintTags();
-
-
 
 			function callPostExif(){
 				var headers = ({'Content-Type': 'application/json'});
 				var body = getTags();
 				// Komma vorne + hinten fuer bessere Suche
-console.log("#### uc: "+ body["UserComment"]);
 				if (body["UserComment"]) body["UserComment"] = "," + body["UserComment"] +","
-console.log("#### uc: "+ body["UserComment"]);
 				body = JSON.stringify(body);
 				fetch("http://127.0.0.1:5000/html/"+ encodeURI(data["SourceFile"])
 					, { method: "POST", headers: headers, body: body }
-				).then(  (res)  => { 
+				).then(  (res)  => {
 					return res.text().then( txt => {
 						document.location = "/html/"+txt+"#"+ document.getElementById("StaticText").value;
 					});
@@ -204,19 +212,19 @@ console.log("#### uc: "+ body["UserComment"]);
 				return {'UserComment': uc,'ImageDescription': id, 'Rating': rating, 'StaticText': st};
 			}
 
-			
+
 			function setTags(json){
 				document.getElementById("ImageDescription").value = json["ImageDescription"];
 				var rating = json["Rating"] || "0";
 				document.getElementById("Rating"+rating).checked=true;
-				
+
 				var static = document.getElementById("StaticText").value
 				var uc = json["UserComment"];
 				if (static) {
 					//console.log("STATIC "+static);
-					if (uc) 
+					if (uc)
 						uc = static +","+ uc;
-					else 
+					else
 						uc = static;
 				}
 				document.getElementById("UserComment"     ).value = uc;
@@ -237,7 +245,6 @@ console.log("#### uc: "+ body["UserComment"]);
 			}
 
 
-
 			function addTag(tag){
 				var list = getUserTags();
 				const equalsIgnoreCase = (element) => element.toLowerCase().trim() === tag.toLowerCase();
@@ -256,7 +263,7 @@ console.log("#### uc: "+ body["UserComment"]);
 				var list = getUserTags();
 				list = Array.from(new Set(list))
 				setUserTags(list);
-			
+
 				for (var i in myTags){
 					for (var j in myTags[i]){
 						var tag = myTags[i][j];
@@ -271,7 +278,7 @@ console.log("#### uc: "+ body["UserComment"]);
 					}
 				}
 			}
-			
+
 			function compareTrimed(_a, _b) {
 				var a = _a.trim();
 				var b = _b.trim();
@@ -284,7 +291,7 @@ console.log("#### uc: "+ body["UserComment"]);
 				return 0;
 			}
 
-			
+
 			linkHelp.addEventListener('mousedown', function (e) {
 				helpDiv = document.getElementById('divHelp');
 				helpDiv.style.visibility='visible';
@@ -294,8 +301,8 @@ console.log("#### uc: "+ body["UserComment"]);
 				helpDiv.style.visibility='hidden';
 				document.activeElement.blur();
 			});
-			
-			
+
+
 			// make Divs moveable
 			var mousedown = false;
 
@@ -304,44 +311,44 @@ console.log("#### uc: "+ body["UserComment"]);
 			divAttentionMove.addEventListener('mousedown', function (e) {
 				mousedown = true;
 				moveDiv = divAttention;
-				x = divAttention.offsetLeft - e.clientX; 
-				y = divAttention.offsetTop  - e.clientY; 
+				x = divAttention.offsetLeft - e.clientX;
+				y = divAttention.offsetTop  - e.clientY;
 			});
-			divAttention.addEventListener('mouseup', function (e) { mousedown = false; }, true); 
+			divAttention.addEventListener('mouseup', function (e) { mousedown = false; }, true);
 
 			var divTitle = document.getElementById('divTitle');
 			var divTitleMove = document.getElementById('divTitleMove');
 			divTitleMove.addEventListener('mousedown', function (e) {
 				mousedown = true;
 				moveDiv = divTitle;
-				x = divTitle.offsetLeft - e.clientX; 
-				y = divTitle.offsetTop  - e.clientY; 
+				x = divTitle.offsetLeft - e.clientX;
+				y = divTitle.offsetTop  - e.clientY;
 			});
-			divTitle.addEventListener('mouseup', function (e) { mousedown = false; }, true); 
+			divTitle.addEventListener('mouseup', function (e) { mousedown = false; }, true);
 
 			var divTags = document.getElementById('divTags');
 			var divTagsMove = document.getElementById('divTagsMove');
 			divTagsMove.addEventListener('mousedown', function (e) {
 				 mousedown = true;
 				 moveDiv = divTags;
-				 x = divTags.offsetLeft - e.clientX; 
-				 y = divTags.offsetTop  - e.clientY; 
+				 x = divTags.offsetLeft - e.clientX;
+				 y = divTags.offsetTop  - e.clientY;
 			});
-			divTags.addEventListener('mouseup', function (e) { mousedown = false; }, true); 
+			divTags.addEventListener('mouseup', function (e) { mousedown = false; }, true);
 
 			var divContainer = document.querySelector('.container');
-			divContainer.addEventListener('mousemove', function (e) { 
-				 if (mousedown) { 
-					 moveDiv.style.left = e.clientX + x + 'px'; 
+			divContainer.addEventListener('mousemove', function (e) {
+				 if (mousedown) {
+					 moveDiv.style.left = e.clientX + x + 'px';
 					 moveDiv.style.top  = e.clientY + y + 'px';
-				 } 
-			 }, true); 
+				 }
+			 }, true);
 
 			// fix heigth
 			//divTitle    .setAttribute("style","height:"+ (divTitle     .offsetHeight -10) +"px");
 			//divTags     .setAttribute("style","height:"+ (divTags      .offsetHeight -10) +"px");
 			//divAttention.setAttribute("style","height:"+ (divAttention .offsetHeight -10) +"px");
-			
+
 		</script>
 	</body>
 </html>
