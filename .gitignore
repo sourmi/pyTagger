@@ -3,3 +3,4 @@ myTags.json
 test.txt
 .idea
 *.iml
+__pycache__

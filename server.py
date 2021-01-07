@@ -4,9 +4,15 @@ import subprocess
 import sys
 import urllib
 import uuid
+import logging
 
 from flask import Flask, request, Response, send_from_directory, redirect
 from flask_restful import Api, Resource
+
+FORMAT = '%(asctime)-15s - %(message)s'
+logging.basicConfig(format=FORMAT)
+logger = logging.getLogger('server')
+logger.setLevel(logging.DEBUG)
 
 app = Flask(__name__)
 
@@ -14,7 +20,7 @@ app = Flask(__name__)
 class ExifData:
 
     @staticmethod
-    def get_data(filen_name):
+    def get_data(file_name):
         try:
             s = subprocess.check_output(
                 ["exiftool"
@@ -26,7 +32,7 @@ class ExifData:
                     , "-Rating"
                     , "-Artist"
                     , "-Copyright"
-                    , filen_name])
+                    , file_name])
             j = json.loads(s)
             return j[0]
         except subprocess.CalledProcessError as error:
@@ -41,14 +47,18 @@ class ExifData:
                 "-overwrite_original",  # change original file no backup-copy
                 "-P"  # preserve Filetime
             ]
+            # Security: Allow-List
+            allowed_tags = ["UserComment", "ImageDescription", "Rating"]
             for key, value in data.items():
-                arg = f"-{key}={value}"
-                args.append(arg)
+                if key in allowed_tags:
+                    arg = f"-{key}={value}"
+                    args.append(arg)
             args.append(file_name)
-            print(args)
-            subprocess.check_output(args)
+            out = subprocess.check_output(args, stderr=subprocess.STDOUT)
+            logger.debug(f'set exiftool parameter: {args}')
+            logger.debug(f'set exiftool output: {out}')
         except subprocess.CalledProcessError as error:
-            print(f"error get data {error.returncode} {error.output}")
+            logger.error(f"error get data {error.returncode} {error.output}")
         return {}
 
 
@@ -99,11 +109,11 @@ class Exif(Resource):
 
 class Html(Resource):
 
-    def get(self, name=""):
+    @staticmethod
+    def get(name=""):
         filename = root_path + name
         if not check_path_traversal(filename):
             return "Bad user!", 403
-        print(f"GET {name}:{str(os.path.isdir(filename))}")
         if os.path.isdir(filename):
             return Response(list_files(name), mimetype='text/html')
         if not os.path.exists(filename):
@@ -112,12 +122,12 @@ class Html(Resource):
         index_html = get_index_html(name)
         return Response(index_html, mimetype='text/html')
 
-    def post(self, name):
+    @staticmethod
+    def post(name):
         filename = root_path + name
         if not check_path_traversal(filename):
             return "Bad user!", 403
         data = request.json
-        print("POST {name}"+ str(data))
         for key, value in data.items():
             #print("> "+key+"=["+ value +"]")
             print(f"> {key}=[{value}]")
@@ -299,11 +309,12 @@ def shutdown():
 @app.after_request
 def add_security_header(response):
     global script_nonce
-    content_security_policy = "default-src 'none';"\
-                              " img-src 'self'; "\
-                              "script-src 'strict-dynamic' 'nonce-" + str(script_nonce) + "'; "\
-                              "style-src 'self'; "\
-                              "connect-src 'self'; "
+    content_security_policy = \
+        "default-src 'none'; "\
+        "img-src 'self'; "\
+        "script-src 'nonce-" + str(script_nonce) + "'; "\
+        "style-src 'self'; "\
+        "connect-src 'self'; "
     response.headers['Content-Security-Policy'] = content_security_policy
     response.headers['X-Frame-Options'] = "deny"
     response.headers['X-Content-Type-Options'] = "nosniff"

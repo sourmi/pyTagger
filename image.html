@@ -17,7 +17,7 @@
 					<tr><td>&nbsp;* ArrowRight </td><td>- next picture</td></tr>
 					<tr><td>&nbsp;* ArrowUp    </td><td>- directory up</td></tr>
 					<tr><td>&nbsp;* Esc        </td><td>- unfocus</td></tr>
-						<tr><td colsapn=2><b>Mouse:</b></td></tr>
+					<tr><td colsapn=2><b>Mouse:</b></td></tr>
 					<tr><td>&nbsp;* WheelUp   </td><td>- prev picture </td></tr>
 					<tr><td>&nbsp;* WheelDown </td><td>- next picture </td></tr>
 					<tr><td>&nbsp;* Click     </td><td>- zoom in / out</td></tr>
@@ -76,45 +76,43 @@
 				, "UserComment"     : `{UserComment}`
 				, "Rating"          : "{Rating}"
 			}
+			var myTags =
+				{TagJsonData}
+			;
 			if(window.location.hash)
 				document.getElementById("StaticText").value = window.location.hash.substring(1);
 
-			setTags(data);
+			var img = document.getElementById("image");
 
-			var myTags =
-			{TagJsonData}
-			;
+			function initializeUserTags() {
+				var div =  document.getElementById("tags");
+				for (var i in myTags){
+					div.appendChild(document.createTextNode(i+": "))
+					var l = 0;
+					for (var tagName in myTags[i]){
+						var tag = myTags[i][tagName];
+						var a = document.createElement('a');
+						a.appendChild(document.createTextNode(tagName));
+						a.title = tagName;
+						a.id = "tag"+ tag;
+						a.href = "#";
 
-			var div =  document.getElementById("tags");
-			for (var i in myTags){
-				div.appendChild(document.createTextNode(i+": "))
-				var l = 0;
-				for (var tagName in myTags[i]){
-					var tag = myTags[i][tagName];
-					var a = document.createElement('a');
-      				a.appendChild(document.createTextNode(tagName));
-      				a.title = tagName;
-      				a.id = "tag"+ tag;
-      				a.href = "#";
-
-					var click_function = function(tag) {
-						return function curried_func(e) {
-							addTag(tag);
-   							e.preventDefault(); // Cancel the native event
-   							e.stopPropagation();// Don't bubble/capture the event any further
+						var click_function = function(tag) {
+							return function curried_func(e) {
+								addUserTag(tag);
+								e.preventDefault(); // Cancel the native event
+								e.stopPropagation();// Don't bubble/capture the event any further
+							}
 						}
+						a.addEventListener('click', click_function(tag));
+						if (l>0)
+							div.appendChild(document.createTextNode(", "));
+						div.appendChild(a);
+						l++;
 					}
-      				a.addEventListener('click', click_function(tag));
-					if (l>0)
-      					div.appendChild(document.createTextNode(", "));
-      				div.appendChild(a);
-					l++;
+					div.appendChild(document.createElement("BR"))
 				}
-				div.appendChild(document.createElement("BR"))
 			}
-
-			var saveBtn = document.getElementById("saveNext");
-			saveBtn.addEventListener("click", function(){callPostExif(event)});
 
 			function navigate(path){
 				var staticText = document.getElementById("StaticText").value;
@@ -123,16 +121,7 @@
 				else
 					document.location = path + data["SourceFile"]+"#"+ staticText
 			}
-			document.getElementById("linkPrev"     ).addEventListener("click", function(){ navigate("/nav/prev/"); });
-			document.getElementById("linkNext"     ).addEventListener("click", function(){ navigate("/nav/next/"); });
-			document.getElementById("linkUp"       ).addEventListener("click", function(){ navigate("/nav/up/"  ); });
-			document.getElementById("linkDel"      ).addEventListener("click", function(){ navigate("/del/"     ); });
-			document.getElementById("linkShutdown" ).addEventListener("click", function(){ document.location = "/shutdown"; });
-			document.getElementById("linkHome"     ).addEventListener("click", function(){ document.location = "/html";     });
-			document.getElementById("linkReload"   ).addEventListener("click", function(){ document.location.reload();      });
-			document.getElementById("image"        ).addEventListener('wheel', zoom);
 
-			var img = document.getElementById("image");
 			function zoom(e){
 				if (img.classList.contains("img-resize")) {
 					if (e.deltaY > 0      ) navigate("/nav/next/");
@@ -154,7 +143,6 @@
 					img.classList.add   ("img-resize");
 				}
 			}
-			document.getElementById("image" ).addEventListener("click", switchImage);
 
 			function handleKeyEvent(e){
 				e = e || window.event;
@@ -171,29 +159,23 @@
 						document.activeElement.blur();
 				}
 			}
-			window.addEventListener('keydown', function(){handleKeyEvent(event)});
 
-			function repaintUserComment(){
+			function handleKeyPress(){
 				var key = window.event.keyCode;
 				if (key === 13 || key===44) {
-					repaintTags();
+					repaintUserComment();
 					return false;
 				}
 				return true;
 			}
 
-			document.getElementById("UserComment").addEventListener("keypress",repaintUserComment );
-			document.getElementById("UserComment").addEventListener("blur"    ,repaintTags );
-
-			repaintTags();
-
 			function callPostExif(){
 				var headers = ({'Content-Type': 'application/json'});
 				var body = getTags();
-				// Komma vorne + hinten fuer bessere Suche
+				// ',' at begin and end for easier searching: ',t:tag,'
 				if (body["UserComment"]) body["UserComment"] = "," + body["UserComment"] +","
 				body = JSON.stringify(body);
-				fetch("http://127.0.0.1:5000/html/"+ encodeURI(data["SourceFile"])
+				fetch("/html/"+ encodeURI(data["SourceFile"])
 					, { method: "POST", headers: headers, body: body }
 				).then(  (res)  => {
 					return res.text().then( txt => {
@@ -203,7 +185,6 @@
 				.catch( (err)  => { console.log("POST: "+ err) });
 			}
 
-
 			function getTags(){
 				var uc = document.getElementById("UserComment"     ).value;
 				var id = document.getElementById("ImageDescription").value;
@@ -212,8 +193,7 @@
 				return {'UserComment': uc,'ImageDescription': id, 'Rating': rating, 'StaticText': st};
 			}
 
-
-			function setTags(json){
+			function setExifData(json){
 				document.getElementById("ImageDescription").value = json["ImageDescription"];
 				var rating = json["Rating"] || "0";
 				document.getElementById("Rating"+rating).checked=true;
@@ -221,31 +201,24 @@
 				var static = document.getElementById("StaticText").value
 				var uc = json["UserComment"];
 				if (static) {
-					//console.log("STATIC "+static);
 					if (uc)
 						uc = static +","+ uc;
 					else
 						uc = static;
 				}
-				document.getElementById("UserComment"     ).value = uc;
-				var list = getUserTags();
-				document.getElementById("UserComment").value = list.sort(compareTrimed).join();
+				document.getElementById("UserComment").value = uc;
+				repaintUserComment();
 			}
-
 
 			function getUserTags(){
 				var uc = document.getElementById("UserComment").value;
-				uc = uc.replace(", ",",")
+				uc = uc.replace(", ", ",");
 				if (uc.charAt(0)==",") uc = uc.substring(1);
 				uc = uc.split(",");
 				return uc;
 			}
-			function setUserTags(tagList){
-				var uc = document.getElementById("UserComment").value = tagList.join();
-			}
 
-
-			function addTag(tag){
+			function addUserTag(tag){
 				var list = getUserTags();
 				const equalsIgnoreCase = (element) => element.toLowerCase().trim() === tag.toLowerCase();
 				var idx = list.findIndex(equalsIgnoreCase);
@@ -254,15 +227,14 @@
 				} else {
 					list.push(tag);
 				}
-				document.getElementById("UserComment").value = list.sort(compareTrimed).join();
-				repaintTags();
+				document.getElementById("UserComment").value = list.sort(comparePrefixed).join();
+				repaintUserComment();
 			}
 
-
-			function repaintTags(){
+			function repaintUserComment(){
 				var list = getUserTags();
 				list = Array.from(new Set(list))
-				setUserTags(list);
+				document.getElementById("UserComment").value = list.sort(comparePrefixed).join();;
 
 				for (var i in myTags){
 					for (var j in myTags[i]){
@@ -279,70 +251,85 @@
 				}
 			}
 
-			function compareTrimed(_a, _b) {
+			// words without prefix 'p:word' always win over prefixed
+			function comparePrefixed(_a, _b) {
 				var a = _a.trim();
 				var b = _b.trim();
-				var a1 = _a.charAt(1);
-				var b1 = _b.charAt(1);
-				if (a1==":" && b1!=":") return  1;
-				if (a1!=":" && b1==":") return -1;
+				var ap = hasPrefix(a);
+				var bp = hasPrefix(b);
+				if (ap && !bp) return  1;
+				if (!ap && bp) return -1;
 				if (a > b) return 1;
 				if (b > a) return -1;
 				return 0;
 			}
+			// check if prefix present 'p:abc' 'pr:abc' 'pre:abc'
+			function hasPrefix(tag){
+				if (tag.charAt(1)==':') return true;
+				if (tag.charAt(2)==':') return true;
+				if (tag.charAt(3)==':') return true;
+				return false;
+			}
 
+			function startDivMove(div, e){
+				 mousedown = true;
+				 moveDiv = div;
+				 moveDivX = div.offsetLeft - e.clientX;
+				 moveDivY = div.offsetTop  - e.clientY;
+			}
 
-			linkHelp.addEventListener('mousedown', function (e) {
+			function addMoveListener(idDiv, idDivMove){
+				var div     = document.getElementById(idDiv);
+				var divMove = document.getElementById(idDivMove);
+				divMove.addEventListener('mousedown', function (e) {
+					startDivMove(div,e);
+				});
+				div.addEventListener('mouseup', function (e) { mousedown = false; }, true);
+			}
+
+			// make Divs moveable
+			var mousedown = false;
+			addMoveListener('divAttention', 'divAttentionMove')
+			addMoveListener('divTitle', 'divTitleMove')
+			addMoveListener('divTags', 'divTagsMove')
+			document.querySelector('.container').addEventListener('mousemove', function (e) {
+				 if (mousedown) {
+					 moveDiv.style.left = e.clientX + moveDivX + 'px';
+					 moveDiv.style.top  = e.clientY + moveDivY + 'px';
+				 }
+			 }, true);
+
+			initializeUserTags();
+			setExifData(data);
+
+			function add_Event_Listener(id, event, funct){
+				document.getElementById(id).addEventListener(event, funct);
+			}
+			add_Event_Listener("linkPrev", "click", function(){ navigate("/nav/prev/"); });
+			add_Event_Listener("linkNext", "click", function(){ navigate("/nav/next/"); });
+			add_Event_Listener("linkUp"  , "click", function(){ navigate("/nav/up/"  ); });
+			add_Event_Listener("linkDel" , "click", function(){ navigate("/del/"     ); });
+			add_Event_Listener("linkShutdown", "click", function(){ document.location = "/shutdown"; });
+			add_Event_Listener("linkHome"    , "click", function(){ document.location = "/html";     });
+			add_Event_Listener("linkReload"  , "click", function(){ document.location.reload();      });
+			add_Event_Listener("image"       , 'wheel', zoom);
+			add_Event_Listener("saveNext"    , "click", function(){callPostExif(event)});
+			add_Event_Listener("image"       , "click", switchImage);
+			add_Event_Listener("UserComment" , "keypress",handleKeyPress );
+			add_Event_Listener("UserComment" , "blur"    ,repaintUserComment );
+			window.addEventListener('keydown', function(){handleKeyEvent(event)});
+			// show + hide divHelp
+			add_Event_Listener('linkHelp', 'mousedown', function (e) {
 				helpDiv = document.getElementById('divHelp');
 				helpDiv.style.visibility='visible';
 			});
-			linkHelp.addEventListener('mouseup', function (e) {
+			add_Event_Listener('linkHelp', 'mouseup', function (e) {
 				helpDiv = document.getElementById('divHelp');
 				helpDiv.style.visibility='hidden';
 				document.activeElement.blur();
 			});
 
-
-			// make Divs moveable
-			var mousedown = false;
-
-			var divAttention     = document.getElementById('divAttention');
-			var divAttentionMove = document.getElementById('divAttentionMove');
-			divAttentionMove.addEventListener('mousedown', function (e) {
-				mousedown = true;
-				moveDiv = divAttention;
-				x = divAttention.offsetLeft - e.clientX;
-				y = divAttention.offsetTop  - e.clientY;
-			});
-			divAttention.addEventListener('mouseup', function (e) { mousedown = false; }, true);
-
-			var divTitle = document.getElementById('divTitle');
-			var divTitleMove = document.getElementById('divTitleMove');
-			divTitleMove.addEventListener('mousedown', function (e) {
-				mousedown = true;
-				moveDiv = divTitle;
-				x = divTitle.offsetLeft - e.clientX;
-				y = divTitle.offsetTop  - e.clientY;
-			});
-			divTitle.addEventListener('mouseup', function (e) { mousedown = false; }, true);
-
-			var divTags = document.getElementById('divTags');
-			var divTagsMove = document.getElementById('divTagsMove');
-			divTagsMove.addEventListener('mousedown', function (e) {
-				 mousedown = true;
-				 moveDiv = divTags;
-				 x = divTags.offsetLeft - e.clientX;
-				 y = divTags.offsetTop  - e.clientY;
-			});
-			divTags.addEventListener('mouseup', function (e) { mousedown = false; }, true);
-
-			var divContainer = document.querySelector('.container');
-			divContainer.addEventListener('mousemove', function (e) {
-				 if (mousedown) {
-					 moveDiv.style.left = e.clientX + x + 'px';
-					 moveDiv.style.top  = e.clientY + y + 'px';
-				 }
-			 }, true);
+			repaintUserComment();
 
 			// fix heigth
 			//divTitle    .setAttribute("style","height:"+ (divTitle     .offsetHeight -10) +"px");
