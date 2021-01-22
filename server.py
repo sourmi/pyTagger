@@ -1,7 +1,7 @@
 import json
 import os
 import subprocess
-import sys
+import sys, getopt
 import urllib
 import uuid
 import logging
@@ -13,6 +13,9 @@ FORMAT = '%(asctime)-15s - %(message)s'
 logging.basicConfig(format=FORMAT)
 logger = logging.getLogger('server')
 logger.setLevel(logging.DEBUG)
+
+# allowed filetypes for '/images/' endpoint
+allowed_images = [".jpeg", ".gif", ".jpg", ".png"]
 
 app = Flask(__name__)
 
@@ -69,9 +72,11 @@ class Images(Resource):
         filename = root_path + name
         print(f"Images.get: {filename}")
 
+        f_name, f_extension = os.path.splitext(name)
+        if f_extension.lower() not in allowed_images:
+            return "Bad filetype!", 403
         if not check_path_traversal(filename):
             return "Bad user!", 403
-
         if not os.path.exists(filename):
             return f"Image {name} not found", 404
         if os.path.isfile(filename):
@@ -112,6 +117,7 @@ class Html(Resource):
     @staticmethod
     def get(name=""):
         filename = root_path + name
+        print(f"{name} - {filename}")
         if not check_path_traversal(filename):
             return "Bad user!", 403
         if os.path.isdir(filename):
@@ -131,7 +137,7 @@ class Html(Resource):
         for key, value in data.items():
             #print("> "+key+"=["+ value +"]")
             print(f"> {key}=[{value}]")
-        # Exif speichern
+        # save exif
         filename = root_path + name
         ExifData.set_data(filename, data)
         next_file = str(get_next_file(name))
@@ -322,16 +328,37 @@ def add_security_header(response):
 
 
 script_nonce = "initialValue"  # nonce for CSP inline JavaScript
-tag_data_json = load_tag_data('tags.json')
+root_path = os.getcwd()
+tag_file = 'tags.json'
 
-path = ""
-if len(sys.argv) > 1:
-    path = sys.argv[1]
-if not os.path.exists(path):
-    path = os.getcwd() + "/"
-print('working path: ', str(path))
-root_path = path
+try:
+    opts, args = getopt.getopt(sys.argv[1:],"hr:t:",["root=","tags="])
+except getopt.GetoptError as e:
+    print(f'error: {e}')
+    print(f'server.py -r <rootDir> -t <tags-json> {e}')
+    sys.exit(2)
 
+for opt, arg in opts:
+    if opt in ("-h", "--help"):
+        print('server.py -r <rootDir> -t <tags-json>')
+        sys.exit()
+    elif opt in ("-r", "--root"):
+        if os.path.exists(arg):
+            root_path = os.path.realpath(arg) +'/'
+        else:
+            print(f"root path does not exist: {arg}")
+            sys.exit(2)
+    elif opt in ("-t", "--tags"):
+        if os.path.exists(arg):
+            tag_file = arg
+        else:
+            print(f"tag file does not exist: {arg}")
+            sys.exit(2)
+
+print(f"root path: {root_path}")
+print(f"tag file: {tag_file}")
+
+tag_data_json = load_tag_data(tag_file)
 
 api = Api(app)
 api.add_resource(Images    , "/images/<path:name>")

@@ -36,7 +36,7 @@
 			</div>
 			<div id="divTags" class="tags floating legend">
 				<div id="divTagsMove" class="mover"></div>
-				<fieldset class="legendPadding">
+				<fieldset id="rating" class="legendPadding">
 					<legend class="medium-text">Rating</legend>
 					<label for="0">0</label>
 					<input type="radio" id="Rating0" name="Rating" class=" legendPadding" value="0">
@@ -144,25 +144,56 @@
 				}
 			}
 
+			function focusByEvent(id, event){
+				event.preventDefault();
+  				event.stopPropagation();
+  				document.getElementById(id).focus();
+  			}
+
+  			function selectRadioById(id){
+  				document.getElementById(id).checked = true;
+  			}
+
+  			function deletePic(){
+  				if (confirm("Bild Löschen?","X")) {
+					txt = "You pressed OK!";
+					navigate("/del/");
+				} else {
+					txt = "You pressed Cancel!";
+				}
+  			}
+
 			function handleKeyEvent(e){
 				e = e || window.event;
 				var sourceTag = document.activeElement.tagName;
-				if (sourceTag=="BODY") {
-					if (e.key == "ArrowLeft" ) return navigate("/nav/prev/");
+				lastTarget = e.target
+				if (sourceTag!="TEXTAREA") {
+					if (e.key == "z") return switchImage(e);
+					if (e.key == "0") return selectRadioById("Rating0", e);
+					if (e.key == "1") return selectRadioById("Rating1", e);
+					if (e.key == "2") return selectRadioById("Rating2", e);
+					if (e.key == "3") return selectRadioById("Rating3", e);
+					if (e.key == "4") return selectRadioById("Rating4", e);
+					if (e.key == "5") return selectRadioById("Rating5", e);
+					if (e.key == "u") return focusByEvent("UserComment", e);
+					if (e.key == "i") return focusByEvent("ImageDescription", e);
+					if (e.key == "s") return focusByEvent("StaticText", e);
+					if (e.key == "Home"      ) return navigate("/nav/up/");
 					if (e.key == "PageUp"    ) return navigate("/nav/prev/");
-					if (e.key == "ArrowRight") return navigate("/nav/next/");
 					if (e.key == "PageDown"  ) return navigate("/nav/next/");
-					if (e.key == "ArrowUp")    return navigate("/nav/up/");
-					document.getElementById("UserComment").focus();
+					if (e.key == "Delete"    ) return deletePic();
 				}
 				if (e.key == "Escape") {
-						document.activeElement.blur();
+					document.activeElement.blur();
+					ic = document.getElementById("imageContainer");
+					ic.focus();
+					//window.focus();
 				}
 			}
 
-			function handleKeyPress(){
-				var key = window.event.keyCode;
-				if (key === 13 || key===44) {
+			function handleUserCommentKeyPress(e){
+				var key = e.keyCode;
+				if (key === 'Enter') {
 					repaintUserComment();
 					return false;
 				}
@@ -171,7 +202,7 @@
 
 			function callPostExif(){
 				var headers = ({'Content-Type': 'application/json'});
-				var body = getTags();
+				var body = getJsonData();
 				// ',' at begin and end for easier searching: ',t:tag,'
 				if (body["UserComment"]) body["UserComment"] = "," + body["UserComment"] +","
 				body = JSON.stringify(body);
@@ -185,7 +216,7 @@
 				.catch( (err)  => { console.log("POST: "+ err) });
 			}
 
-			function getTags(){
+			function getJsonData(){
 				var uc = document.getElementById("UserComment"     ).value;
 				var id = document.getElementById("ImageDescription").value;
 				var st = document.getElementById("StaticText"      ).value;
@@ -308,14 +339,14 @@
 			add_Event_Listener("linkPrev", "click", function(){ navigate("/nav/prev/"); });
 			add_Event_Listener("linkNext", "click", function(){ navigate("/nav/next/"); });
 			add_Event_Listener("linkUp"  , "click", function(){ navigate("/nav/up/"  ); });
-			add_Event_Listener("linkDel" , "click", function(){ navigate("/del/"     ); });
+			add_Event_Listener("linkDel" , "click", function(){ deletePic(); });
 			add_Event_Listener("linkShutdown", "click", function(){ document.location = "/shutdown"; });
 			add_Event_Listener("linkHome"    , "click", function(){ document.location = "/html";     });
 			add_Event_Listener("linkReload"  , "click", function(){ document.location.reload();      });
 			add_Event_Listener("image"       , 'wheel', zoom);
 			add_Event_Listener("saveNext"    , "click", function(){callPostExif(event)});
 			add_Event_Listener("image"       , "click", switchImage);
-			add_Event_Listener("UserComment" , "keypress",handleKeyPress );
+			add_Event_Listener("UserComment" , "keypress",function(){handleUserCommentKeyPress(event)});
 			add_Event_Listener("UserComment" , "blur"    ,repaintUserComment );
 			window.addEventListener('keydown', function(){handleKeyEvent(event)});
 			// show + hide divHelp
@@ -329,7 +360,10 @@
 				document.activeElement.blur();
 			});
 
-			repaintUserComment();
+			window.onload = function(){
+				repaintUserComment();
+				document.getElementById("imageContainer").focus();
+			};
 
 			// fix heigth
 			//divTitle    .setAttribute("style","height:"+ (divTitle     .offsetHeight -10) +"px");
