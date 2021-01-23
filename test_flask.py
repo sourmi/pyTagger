@@ -2,7 +2,6 @@ import os
 import tempfile
 import pytest
 import base64
-from enum import Enum
 
 import server
 
@@ -57,7 +56,7 @@ def assert_response(response, status, mimetype):
 
 
 def test_path_traversal(client):
-    rv = client.get("/images/test/")
+    rv = client.get("/images/test/test.jpeg")
     print("\n###\n### JSON3: " + str(rv.data)) #base64.b64encode(rv.data)))
     print("s: "+ rv.status +" m: "+ rv.mimetype)
     assert rv.status == status_200
@@ -74,7 +73,7 @@ def test_path_traversal(client):
 
     assert status_403 == check_path_traversal(client, '/html/../')
 
-    assert status_200 == check_path_traversal(client, '/images/test/')
+    assert status_403 == check_path_traversal(client, '/images/test/')
     assert status_200 == check_path_traversal(client, '/images/test/test.jpeg')
     assert status_200 == check_path_traversal(client, '/images/test/test.gif')
 

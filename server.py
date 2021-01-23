@@ -344,7 +344,7 @@ for opt, arg in opts:
         sys.exit()
     elif opt in ("-r", "--root"):
         if os.path.exists(arg):
-            root_path = os.path.realpath(arg) +'/'
+            root_path = os.path.realpath(arg)
         else:
             print(f"root path does not exist: {arg}")
             sys.exit(2)
@@ -354,6 +354,9 @@ for opt, arg in opts:
         else:
             print(f"tag file does not exist: {arg}")
             sys.exit(2)
+
+if not root_path.endswith('/'):
+    root_path += '/'
 
 print(f"root path: {root_path}")
 print(f"tag file: {tag_file}")
